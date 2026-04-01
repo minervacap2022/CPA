@@ -73,81 +73,51 @@ ws-auth: false
 # When > 0, emit blank lines every N seconds for non-streaming responses to prevent idle timeouts.
 nonstream-keepalive-interval: 0
 # ============================================================
-# Multi-Provider Configuration (OpenAI-Compatible)
+# Normal API Providers (OpenAI-Compatible)
 # ============================================================
-# Routing behavior:
-#   AUTO ROUTING (current: force-model-prefix: false)
-#     → Request model by name: "moonshot-v1-128k", "glm-4-flash", "gpt-4o"
-#     → Proxy matches model name to provider automatically
-#   EXPLICIT ROUTING
-#     → Prefix with provider: "kimi/moonshot-v1-128k", "openai/gpt-4o"
-#     → Forces specific provider even if model name overlaps
-#   DISABLE AUTO ROUTING
-#     → Set force-model-prefix: true above
-#     → All requests MUST use prefix: "kimi/moonshot-v1-128k"
+# No models field = proxy forwards any model name to the provider.
+# The provider validates the model. Models stay dynamic and up-to-date.
+# Empty api-key entries are NOT loaded — add keys when you have them.
+#
+# Auto routing: force-model-prefix: false → model name routes automatically
+# Explicit routing: prefix/model-name forces specific provider
+
 openai-compatibility:
-# --- Kimi (Moonshot AI / 月之暗面) ---
+  # --- Kimi (Moonshot AI) ---
+  # API key: https://platform.moonshot.ai/console/api-keys
   - name: "kimi"
     prefix: "kimi"
     base-url: "https://api.moonshot.cn/v1"
-    api-key-entries:
-      - api-key: ""
-    models:
-      - name: "moonshot-v1-8k"
-      - name: "moonshot-v1-32k"
-      - name: "moonshot-v1-128k"
-      - name: "moonshot-v1-auto"
-# --- MiniMax (海螺AI) ---
+    api-key-entries: []
+
+  # --- MiniMax ---
+  # API key: https://platform.minimax.io
   - name: "minimax"
     prefix: "minimax"
     base-url: "https://api.minimax.chat/v1"
-    api-key-entries:
-      - api-key: ""
-    models:
-      - name: "MiniMax-Text-01"
-      - name: "abab6.5s-chat"
-# --- OpenAI ---
+    api-key-entries: []
+
+  # --- OpenAI ---
+  # API key: https://platform.openai.com/api-keys
   - name: "openai"
     prefix: "openai"
     base-url: "https://api.openai.com/v1"
-    api-key-entries:
-      - api-key: ""
-    models:
-      - name: "gpt-4o"
-      - name: "gpt-4o-mini"
-      - name: "o1"
-      - name: "o1-mini"
-      - name: "o3"
-      - name: "o3-mini"
-      - name: "o4-mini"
-# --- Doubao (豆包 / Volcengine Ark) ---
+    api-key-entries: []
+
+  # --- Doubao (Volcengine Ark) ---
+  # API key: https://console.volcengine.com/ark
   - name: "doubao"
     prefix: "doubao"
     base-url: "https://ark.cn-beijing.volces.com/api/v3"
-    api-key-entries:
-      - api-key: ""
-    models:
-      - name: "doubao-seed-1-6-251015"
-      - name: "doubao-seed-1-6-thinking-250715"
-      - name: "doubao-seed-1-6-flash-250828"
-      - name: "doubao-1-5-pro-32k-250115"
-      - name: "doubao-1-5-pro-256k-250115"
-      - name: "doubao-1-5-lite-32k-250115"
-# --- GLM (智谱AI / Zhipu) ---
+    api-key-entries: []
+
+  # --- GLM (Zhipu AI) ---
+  # API key: https://open.bigmodel.cn/usercenter/apikeys
   - name: "glm"
     prefix: "glm"
     base-url: "https://open.bigmodel.cn/api/paas/v4"
-    api-key-entries:
-      - api-key: ""
-    models:
-      - name: "glm-4-plus"
-      - name: "glm-4"
-      - name: "glm-4-long"
-      - name: "glm-4-air"
-      - name: "glm-4-airx"
-      - name: "glm-4-flash"
-      - name: "glm-4-flashx"
-      - name: "glm-4v-plus"
+    api-key-entries: []
+
 
 # Streaming behavior (SSE keep-alives + safe bootstrap retries).
 # streaming:
@@ -221,94 +191,61 @@ openai-compatibility:
 #       cache-user-id: true          # optional: default is false; set true to reuse cached user_id per API key instead of generating a random one each request
 
 # ============================================================
-# Claude-API-Key Providers (Anthropic-compatible endpoints)
+# Coding Plan + Normal API (Anthropic-compatible endpoints)
 # ============================================================
 # Each provider exposes an Anthropic-compatible endpoint.
 # TWO key types per provider:
-#   1. Normal API key (pay-per-use, no rate limits besides billing)
-#   2. Coding Plan key (subscription, 5-hour/weekly/monthly quotas)
-#   These are DIFFERENT keys from the same provider!
+#   1. Normal API key — pay-per-use, no quota limits
+#   2. Coding Plan key — subscription, 5-hour/weekly/monthly quotas
+# These are DIFFERENT keys! Do not mix them.
 #
-# Failover: proxy auto-retries next credential on 429/403.
-# Multiple entries: add more entries with different keys for more quota/failover.
-# Model toggle: "models" restricts which models this entry serves.
-#   - null/omit → allow ALL models
-#   - [{name: ..., alias: ...}] → only these, with optional aliases
+# No models field = proxy exposes all provider models dynamically.
+# Add models field only to RESTRICT which models an entry serves.
+# Empty api-key entries are skipped — only add real keys.
+# Multiple entries per provider: just duplicate with different keys.
 #
-# Dashboard: http://34.56.72.108:8317/management.html (self-hosted, no external deps)
+# Dashboard: http://34.56.72.108:8317/management.html
 
 claude-api-key:
   # =====================
   # Kimi (Moonshot AI)
   # =====================
   # Normal API: https://platform.moonshot.ai/console/api-keys
-  - api-key: ""
-    prefix: "kimi-api"
-    base-url: "https://api.moonshot.ai/anthropic"
-
   # Coding Plan: https://www.kimi.com/code/en (49-99 RMB/mo)
-  - api-key: ""
-    prefix: "kimi-code"
-    base-url: "https://api.moonshot.ai/anthropic"
-    models:
-      - name: "kimi-k2.5"
-        alias: "claude-sonnet-4-6"
-      - name: "kimi-k2-thinking"
-        alias: "claude-opus-4-6"
+  # Endpoint: https://api.moonshot.ai/anthropic
 
   # =====================
   # MiniMax
   # =====================
   # Normal API: https://platform.minimax.io (general API key)
-  - api-key: ""
-    prefix: "minimax-api"
-    base-url: "https://api.minimax.io/anthropic"
-
-  # Token Plan: https://www.minimax.io/pricing (Token Plan key, NOT general!)
-  - api-key: ""
-    prefix: "minimax-code"
-    base-url: "https://api.minimax.io/anthropic"
-    models:
-      - name: "MiniMax-M2.7"
-        alias: "claude-sonnet-4-6"
+  # Token Plan: https://www.minimax.io/pricing (separate key!)
+  # Endpoint: https://api.minimax.io/anthropic
 
   # =====================
   # GLM (Zhipu AI / Z.AI)
   # =====================
   # Normal API: https://open.bigmodel.cn/usercenter/apikeys
-  - api-key: ""
-    prefix: "glm-api"
-    base-url: "https://api.z.ai/api/anthropic"
-
   # Coding Plan: https://z.ai/subscribe ($10-30/mo)
-  - api-key: ""
-    prefix: "glm-code"
-    base-url: "https://api.z.ai/api/anthropic"
-    models:
-      - name: "GLM-4.7"
-        alias: "claude-sonnet-4-6"
-      - name: "GLM-5.1"
-        alias: "claude-opus-4-6"
+  # Endpoint: https://api.z.ai/api/anthropic
 
   # =====================
   # Doubao (Volcengine Ark)
   # =====================
-  # Normal API: https://console.volcengine.com/ark (pay-per-token)
-  - api-key: ""
-    prefix: "doubao-api"
-    base-url: "https://ark.cn-beijing.volces.com/api/coding"
-
+  # Normal API: https://console.volcengine.com/ark
   # Coding Plan: https://www.volcengine.com/activity/codingplan (9.9-49.9 CNY/mo)
-  # Includes 3rd-party: glm-4.7, deepseek-v3.2, kimi-k2.5, minimax-m2.5
-  - api-key: ""
-    prefix: "doubao-code"
-    base-url: "https://ark.cn-beijing.volces.com/api/coding"
-    models:
-      - name: "doubao-seed-2.0-code"
-        alias: "claude-sonnet-4-6"
-      - name: "doubao-seed-2.0-pro"
-        alias: "claude-opus-4-6"
-      - name: "ark-code-latest"
+  # Includes 3rd-party models: glm, deepseek, kimi, minimax
+  # Endpoint: https://ark.cn-beijing.volces.com/api/coding
+
+  # =====================
+  # Add entries below when you have real API keys.
+  # Example:
+  # - api-key: "sk-your-real-key-here"
+  #   prefix: "kimi-code"
+  #   base-url: "https://api.moonshot.ai/anthropic"
+  # - api-key: "sk-another-key"
+  #   prefix: "kimi-api"
+  #   base-url: "https://api.moonshot.ai/anthropic"
+  # =====================
 
 
 # Default headers for Claude API requests. Update when Claude Code releases new versions.
