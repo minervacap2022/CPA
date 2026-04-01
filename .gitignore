@@ -1,0 +1,14 @@
+# Binary (too large for git, download separately)
+cli-proxy-api
+
+# Auth data (secrets)
+.cli-proxy-api/
+
+# Logs
+*.log
+
+# Temp files
+*.tmp
+*.bak
+config.yaml
+6.8.55/cli-proxy-api
