@@ -1,0 +1,14 @@
+gateway:
+  host: 0.0.0.0
+  port: 8317
+  upstream: http://127.0.0.1:8318
+api-keys:
+  sk-YOUR-KEY-1:
+    label: 'Key #1'
+    models: []
+  sk-YOUR-KEY-2:
+    label: 'Key #2'
+    models: []
+  sk-YOUR-KEY-3:
+    label: 'Key #3'
+    models: []

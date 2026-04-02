@@ -1,8 +1,8 @@
 # Server host/interface to bind to. Default is empty ("") to bind all interfaces (IPv4 + IPv6).
 # Use "127.0.0.1" or "localhost" to restrict access to local machine only.
-host: ""
+host: "127.0.0.1"
 # Server port
-port: 8317
+port: 8318
 # TLS settings for HTTPS. When enabled, the server listens with the provided certificate and key.
 tls:
   enable: false
@@ -103,12 +103,14 @@ openai-compatibility:
   - name: "doubao"
     prefix: "doubao"
     base-url: "https://ark.cn-beijing.volces.com/api/v3"
-    api-key-entries: []
-# --- GLM (Zhipu AI) ---
-# API key: https://open.bigmodel.cn/usercenter/apikeys
   - name: "glm"
     prefix: "glm"
     base-url: "https://open.bigmodel.cn/api/paas/v4"
+  - name: Dou bao
+    base-url: https://ark.cn-beijing.volces.com/api/coding/v3
+    api-key-entries:
+      - api-key: 
+    models: []
 # Streaming behavior (SSE keep-alives + safe bootstrap retries).
 # streaming:
 #   keepalive-seconds: 15   # Default: 0 (disabled). <= 0 disables keep-alives.
@@ -196,7 +198,6 @@ openai-compatibility:
 #
 # Dashboard: http://34.56.72.108:8317/management.html
 claude-api-key:
-
 # =====================
 # Kimi (Moonshot AI)
 # =====================
@@ -227,7 +228,7 @@ claude-api-key:
 # Endpoint: https://ark.cn-beijing.volces.com/api/coding
 
 # =====================
-  # --- Doubao Coding Plan ---
+# --- Doubao Coding Plan ---
   - api-key: ""
     prefix: "doubao-code"
     base-url: "https://ark.cn-beijing.volces.com/api/coding"

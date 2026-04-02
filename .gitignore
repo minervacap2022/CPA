@@ -1,14 +1,10 @@
-# Binary (too large for git, download separately)
 cli-proxy-api
-
-# Auth data (secrets)
+6.8.55/cli-proxy-api
 .cli-proxy-api/
-
-# Logs
+.gw-venv/
+config.yaml
+gateway_config.yaml
 *.log
-
-# Temp files
 *.tmp
 *.bak
-config.yaml
-6.8.55/cli-proxy-api
+__pycache__/
