@@ -183,5 +183,153 @@ ${n.comment}`:n.comment}this.doc.range[2]=n.offset;break}default:this.errors.pus
   </head>
   <body>
     <div id="root"></div>
-  </body>
+  
+
+
+<!-- CPA Gateway: Per-Key Model Access Control -->
+<div id="gw-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:#0d1117;color:#c9d1d9;overflow-y:auto;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+<div style="max-width:900px;margin:0 auto;padding:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <h1 style="font-size:24px;font-weight:600;margin:0;">Gateway: Per-Key Model Access</h1>
+    <button onclick="toggleGateway()" style="padding:8px 16px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;cursor:pointer;font-size:14px;">Close</button>
+  </div>
+  <p style="color:#8b949e;margin-bottom:20px;">Configure which models each API key can access. Empty list means all models allowed. Supports glob patterns like <code style="background:#161b22;padding:2px 6px;border-radius:4px;">doubao-code/*</code></p>
+  <div id="gw-keys"></div>
+  <div id="gw-status" style="margin-top:16px;"></div>
+</div>
+</div>
+<script>
+(function(){
+var GW_API="/v0/gateway/keys";
+var gwVisible=false;
+var allModels=[];
+
+window.toggleGateway=function(){
+  gwVisible=!gwVisible;
+  document.getElementById("gw-overlay").style.display=gwVisible?"block":"none";
+  if(gwVisible)loadGateway();
+};
+
+setTimeout(function(){
+  var btn=document.createElement("div");
+  btn.innerHTML='<button onclick="toggleGateway()" style="position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:12px;border:none;background:linear-gradient(135deg,#238636,#1a7f37);color:white;cursor:pointer;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.4);">Gateway Keys</button>';
+  document.body.appendChild(btn);
+},1000);
+
+function fetchModels(){
+  var keys=[];
+  try{keys=JSON.parse(localStorage.getItem("cpamc_api_keys")||"[]")}catch(e){}
+  var key=keys[0]||"";
+  return fetch("/v1/models",{headers:{"Authorization":"Bearer "+key}})
+    .then(function(r){return r.ok?r.json():Promise.resolve({data:[]})})
+    .then(function(d){allModels=d.data.map(function(m){return m.id}).sort()})
+    .catch(function(){});
+}
+
+function loadGateway(){
+  fetchModels().then(function(){
+    return fetch(GW_API);
+  }).then(function(r){
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(keys){
+    renderKeys(keys);
+  }).catch(function(e){
+    showStatus("Gateway API error: "+e.message,"error");
+  });
+}
+
+function renderKeys(keys){
+  var container=document.getElementById("gw-keys");
+  container.innerHTML="";
+  var entries=Object.entries(keys);
+  for(var i=0;i<entries.length;i++){
+    var fullKey=entries[i][0];
+    var cfg=entries[i][1];
+    var masked=fullKey.substring(0,6)+"******"+fullKey.slice(-2);
+    var models=cfg.models||[];
+    var card=document.createElement("div");
+    card.style.cssText="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;margin-bottom:16px;";
+    var statusColor=models.length?"#f0883e":"#3fb950";
+    var statusText=models.length?models.length+" pattern(s)":"All models";
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+      +'<div><span style="font-weight:600;font-size:16px;">'+(cfg.label||masked)+'</span>'
+      +'<code style="margin-left:12px;font-size:12px;color:#8b949e;background:#0d1117;padding:2px 8px;border-radius:4px;">'+masked+'</code></div>'
+      +'<span style="font-size:13px;color:'+statusColor+';">'+statusText+'</span></div>'
+      +'<div style="margin-bottom:12px;">'
+      +'<label style="font-size:13px;color:#8b949e;display:block;margin-bottom:6px;">Allowed model patterns (one per line, empty = all):</label>'
+      +'<textarea id="gw-ta-'+i+'" data-key="'+fullKey+'" rows="3" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;padding:10px;font-family:monospace;font-size:13px;resize:vertical;" placeholder="Examples: doubao-code/*  claude-sonnet-*">'+models.join("\n")+'</textarea></div>'
+      +'<div style="margin-bottom:12px;"><label style="font-size:13px;color:#8b949e;display:block;margin-bottom:6px;">Quick toggle groups:</label>'
+      +'<div id="gw-tog-'+i+'" style="display:flex;flex-wrap:wrap;gap:6px;"></div></div>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button onclick="gwSave('+i+')" style="padding:8px 16px;border-radius:8px;border:none;background:#238636;color:white;cursor:pointer;font-size:13px;font-weight:500;">Save</button>'
+      +'<button onclick="gwClear('+i+')" style="padding:8px 16px;border-radius:8px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;cursor:pointer;font-size:13px;">Clear (allow all)</button></div>';
+    container.appendChild(card);
+    renderToggles(i,models);
+  }
+}
+
+function renderToggles(idx,currentModels){
+  var container=document.getElementById("gw-tog-"+idx);
+  if(!container)return;
+  if(!allModels.length){container.innerHTML='<span style="color:#8b949e;font-size:12px;">No models loaded</span>';return;}
+  var groups={};
+  for(var j=0;j<allModels.length;j++){
+    var m=allModels[j];
+    var prefix=m.indexOf("/")>-1?m.split("/")[0]:"claude";
+    if(!groups[prefix])groups[prefix]=[];
+    groups[prefix].push(m);
+  }
+  container.innerHTML="";
+  var prefixes=Object.keys(groups);
+  for(var k=0;k<prefixes.length;k++){
+    var p=prefixes[k];
+    var pattern=p+"/*";
+    var active=currentModels.indexOf(pattern)>-1;
+    var btn=document.createElement("button");
+    btn.style.cssText="padding:4px 10px;border-radius:6px;border:1px solid "+(active?"#238636":"#30363d")+";background:"+(active?"#238636":"#0d1117")+";color:"+(active?"white":"#8b949e")+";cursor:pointer;font-size:12px;font-weight:600;";
+    btn.textContent=pattern+" ("+groups[p].length+")";
+    btn.setAttribute("data-idx",idx);
+    btn.setAttribute("data-pattern",pattern);
+    btn.onclick=function(){
+      var tidx=this.getAttribute("data-idx");
+      var tpat=this.getAttribute("data-pattern");
+      var ta=document.getElementById("gw-ta-"+tidx);
+      var lines=ta.value.split("\n").filter(function(l){return l.trim()});
+      var pos=lines.indexOf(tpat);
+      if(pos>-1){lines.splice(pos,1)}else{lines.push(tpat)}
+      ta.value=lines.join("\n");
+      renderToggles(parseInt(tidx),lines);
+    };
+    container.appendChild(btn);
+  }
+}
+
+window.gwSave=function(idx){
+  var ta=document.getElementById("gw-ta-"+idx);
+  var fullKey=ta.getAttribute("data-key");
+  var models=ta.value.split("\n").map(function(l){return l.trim()}).filter(function(l){return l});
+  fetch(GW_API,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:fullKey,models:models})})
+    .then(function(r){if(r.ok){showStatus("Saved!","success");loadGateway()}else{return r.json().then(function(d){showStatus("Error: "+(d.error||r.status),"error")})}})
+    .catch(function(e){showStatus("Save failed: "+e.message,"error")});
+};
+
+window.gwClear=function(idx){
+  var ta=document.getElementById("gw-ta-"+idx);
+  var fullKey=ta.getAttribute("data-key");
+  fetch(GW_API,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:fullKey,models:[]})})
+    .then(function(r){if(r.ok){showStatus("Cleared - all models allowed","success");loadGateway()}})
+    .catch(function(e){showStatus("Clear failed: "+e.message,"error")});
+};
+
+function showStatus(msg,type){
+  var el=document.getElementById("gw-status");
+  var color=type==="error"?"#f85149":"#3fb950";
+  el.innerHTML='<div style="padding:10px 16px;border-radius:8px;background:'+color+'22;border:1px solid '+color+';color:'+color+';font-size:13px;">'+msg+'</div>';
+  setTimeout(function(){el.innerHTML=""},3000);
+}
+})();
+</script>
+
+</body>
 </html>
