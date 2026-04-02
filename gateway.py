@@ -15,6 +15,10 @@ log = logging.getLogger("cpa-gateway")
 
 CONFIG_PATH = Path(__file__).parent / "gateway_config.yaml"
 
+# Headers that must NOT be copied to avoid corruption
+SKIP_REQ_HEADERS = {"host", "content-length", "transfer-encoding"}
+SKIP_RESP_HEADERS = {"content-length", "transfer-encoding", "content-encoding", "connection"}
+
 
 def load_config():
     with open(CONFIG_PATH) as f:
@@ -38,8 +42,11 @@ def extract_api_key(request: Request) -> str:
 
 
 def forward_headers(request: Request) -> dict[str, str]:
-    skip = {"host", "content-length", "transfer-encoding"}
-    return {k: v for k, v in request.headers.items() if k.lower() not in skip}
+    return {k: v for k, v in request.headers.items() if k.lower() not in SKIP_REQ_HEADERS}
+
+
+def safe_resp_headers(resp: httpx.Response) -> dict[str, str]:
+    return {k: v for k, v in resp.headers.items() if k.lower() not in SKIP_RESP_HEADERS}
 
 
 app = FastAPI(title="CPA Gateway")
@@ -51,7 +58,7 @@ async def proxy(request: Request, path: str):
     cfg = load_config()
     upstream = cfg["gateway"]["upstream"]
 
-    # --- Gateway management routes (handle BEFORE forwarding) ---
+    # --- Gateway management routes ---
     if path == "v0/gateway/keys":
         return await handle_keys(request, cfg)
 
@@ -66,7 +73,7 @@ async def proxy(request: Request, path: str):
     headers = forward_headers(request)
     body = await request.body()
 
-    # --- /v1/models: filter response by allowed models ---
+    # --- /v1/models: filter by allowed models ---
     if path == "v1/models" and allowed:
         resp = await client.get(url, headers=headers)
         if resp.status_code == 200:
@@ -75,14 +82,16 @@ async def proxy(request: Request, path: str):
             return JSONResponse(content=data)
         return Response(content=resp.content, status_code=resp.status_code)
 
-    # --- /v1/chat/completions: block disallowed models ---
-    if path == "v1/chat/completions" and allowed:
+    # --- Model access check for completions/messages ---
+    if path in ("v1/chat/completions", "v1/messages") and allowed and body:
         try:
-            model = json.loads(body).get("model", "")
-            if not model_allowed(model, allowed):
-                return JSONResponse(status_code=403, content={
-                    "error": {"type": "forbidden", "message": f"Model '{model}' not allowed for this API key."}
-                })
+            parsed = json.loads(body)
+            if isinstance(parsed, dict):
+                model = parsed.get("model", "")
+                if model and not model_allowed(model, allowed):
+                    return JSONResponse(status_code=403, content={
+                        "error": {"type": "forbidden", "message": f"Model '{model}' not allowed for this API key."}
+                    })
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
@@ -90,22 +99,34 @@ async def proxy(request: Request, path: str):
     is_stream = False
     if body:
         try:
-            parsed = json.loads(body); is_stream = parsed.get("stream", False) if isinstance(parsed, dict) else False
+            parsed = json.loads(body)
+            if isinstance(parsed, dict):
+                is_stream = parsed.get("stream", False)
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
+    # --- Forward: streaming or regular ---
     if is_stream:
         req = client.build_request(request.method, url, headers=headers, content=body)
         resp = await client.send(req, stream=True)
-        return StreamingResponse(resp.aiter_raw(), status_code=resp.status_code,
-                                 headers=dict(resp.headers), background=resp.aclose)
+        return StreamingResponse(
+            resp.aiter_raw(),
+            status_code=resp.status_code,
+            headers=safe_resp_headers(resp),
+            media_type=resp.headers.get("content-type"),
+            background=resp.aclose,
+        )
 
     resp = await client.request(request.method, url, headers=headers, content=body)
-    return Response(content=resp.content, status_code=resp.status_code, headers=dict(resp.headers))
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        headers=safe_resp_headers(resp),
+        media_type=resp.headers.get("content-type"),
+    )
 
 
 async def handle_keys(request: Request, cfg: dict):
-    """GET: list keys. PUT: update key models."""
     if request.method == "GET":
         return JSONResponse({k: v for k, v in cfg.get("api-keys", {}).items()})
     if request.method == "PUT":
@@ -127,5 +148,5 @@ if __name__ == "__main__":
     import uvicorn
     cfg = load_config()
     gw = cfg["gateway"]
-    log.info(f"CPA Gateway on {gw['host']}:{gw['port']} → {gw['upstream']}")
+    log.info(f"CPA Gateway on {gw['host']}:{gw['port']} -> {gw['upstream']}")
     uvicorn.run(app, host=gw["host"], port=gw["port"], log_level="info")
