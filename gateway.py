@@ -90,7 +90,7 @@ async def proxy(request: Request, path: str):
     is_stream = False
     if body:
         try:
-            is_stream = json.loads(body).get("stream", False)
+            parsed = json.loads(body); is_stream = parsed.get("stream", False) if isinstance(parsed, dict) else False
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
 
